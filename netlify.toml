@@ -1,5 +1,5 @@
 [build]
-command = "node_modules/.bin/tsc -p tsconfig.build.json && vite build --config ./vite.config.ts"
+command = "npm run build"
 publish = "dist"
 
 [build.environment]
