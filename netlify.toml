@@ -1,6 +1,7 @@
 [build]
-command = "vite build"
-publish = "dist"
+  command = "yarn build"
+  publish = "dist"
+  base = "src"
 
 [build.image]
 name = "node"
@@ -18,4 +19,4 @@ status = 200
 NODE_ENV = "production"
 
 [context.production]
-deploy_to = "aegiswealth"
+deploy_to = "wealthaegis"
