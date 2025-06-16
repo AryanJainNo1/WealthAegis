@@ -36,7 +36,7 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/guest" element={<GuestPage />} />
-              <Route path="/" element={<Navigate to="/holdings" />} />
+              <Route path="/" element={<Navigate to="/login" />} />
               <Route path="/estate-planning-basics" element={<PrivateRoute><EstatePlanningBasicsPage /></PrivateRoute>} />
               <Route path="/understanding-wills" element={<PrivateRoute><UnderstandingWillsPage /></PrivateRoute>} />
               <Route path="/how-to-write-a-will" element={<PrivateRoute><HowToWriteAWillPage /></PrivateRoute>} />

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { prisma } from '@/lib/db';
-import { genSalt, hash, compare } from 'bcryptjs';
+import { apiService } from '@/lib/api';
 import { sign, verify } from 'jsonwebtoken';
+import axios from 'axios';
 
 interface User {
   id: string;
@@ -30,54 +30,12 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
 
-  // On mount, load user from localStorage
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = verify(token, process.env.JWT_SECRET || 'secret') as { userId: string };
-        const userData = localStorage.getItem("user");
-        if (userData) {
-          const storedUser = JSON.parse(userData);
-          if (storedUser.id === decoded.userId) {
-            setUser(storedUser);
-          } else {
-            throw new Error('User ID mismatch');
-          }
-        }
-      } catch (error) {
-        logout();
-      }
-    }
-  }, []);
-
-  // Keep localStorage in sync with user state
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("user");
-      localStorage.removeItem("token");
-    }
-  }, [user]);
-
   const login = async (email: string, password: string) => {
     try {
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      if (!existingUser) return false;
-
-      const isPasswordValid = await compare(password, existingUser.password);
-      if (!isPasswordValid) return false;
-
-      const token = sign({ userId: existingUser.id }, process.env.JWT_SECRET || 'secret', {
-        expiresIn: '24h'
-      });
-
-      localStorage.setItem("token", token);
-      setUser({ id: existingUser.id, name: existingUser.email.split('@')[0], email: existingUser.email });
+      const response = await apiService.login(email, password);
+      const { token, user: userData } = response.data;
+      localStorage.setItem('token', token);
+      setUser(userData);
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -87,27 +45,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signup = async (name: string, email: string, password: string) => {
     try {
-      const existingUser = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      if (existingUser) return false;
-
-      const salt = await genSalt(10);
-      const hashedPassword = await hash(password, salt);
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-        }
-      });
-
-      const token = sign({ userId: user.id }, process.env.JWT_SECRET || 'secret', {
-        expiresIn: '24h'
-      });
-
-      localStorage.setItem("token", token);
-      setUser({ id: user.id, name, email });
+      const response = await apiService.signup(name, email, password);
+      const { token, user: userData } = response.data;
+      localStorage.setItem('token', token);
+      setUser(userData);
       return true;
     } catch (error) {
       console.error('Signup error:', error);
@@ -116,31 +57,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginAsGuest = () => {
-    setUser({
+    const guestUser = {
       id: 'guest',
-      name: 'Guest',
+      name: 'Guest User',
       email: 'guest@example.com',
       guest: true
-    });
+    };
+    setUser(guestUser);
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem('token');
     setUser(null);
   };
 
-  const getToken = () => {
-    return localStorage.getItem("token");
-  };
+  const getToken = () => localStorage.getItem('token');
 
-  const value = {
-    user,
-    login,
-    signup,
-    loginAsGuest,
-    logout,
-    getToken
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        signup,
+        loginAsGuest,
+        logout,
+        getToken
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };

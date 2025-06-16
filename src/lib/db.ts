@@ -1,9 +1,3 @@
-import { PrismaClient } from '@prisma/client';
-
-let globalForPrisma = typeof globalThis !== 'undefined' ? globalThis : global;
-
-export const prisma = globalForPrisma.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+// This file is no longer needed since we're using API service instead
+// All database operations should be handled through the API service
+export const db = {} as any;

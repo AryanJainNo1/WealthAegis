@@ -1,18 +1,21 @@
 [build]
-command = "npm run build"
+command = "vite build"
 publish = "dist"
-
-[build.environment]
-NODE_ENV = "production"
 
 [build.image]
 name = "node"
 version = "20"
 
 [cache]
-directories = ["node_modules", ".npm"]
+directories = ["node_modules"]
 
 [[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
+
+[build.environment]
+NODE_ENV = "production"
+
+[context.production]
+deploy_to = "aegiswealth"

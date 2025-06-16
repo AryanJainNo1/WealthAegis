@@ -4,10 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node_modules/.bin/tsc -p tsconfig.build.json && vite build",
-    "preview": "vite preview",
-    "type-check": "node_modules/.bin/tsc -p tsconfig.build.json",
-    "postinstall": "npx prisma generate"
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -16,25 +14,37 @@
     "@mui/material": "^5.15.6",
     "@prisma/client": "^5.9.1",
     "@react-pdf/renderer": "^3.1.12",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/sqlite3": "^3.1.11",
+    "axios": "^1.9.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.0",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^2.5.2",
+    "pg": "^8.16.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.3",
+    "sqlite3": "^5.1.7",
+    "vite": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.3",
+    "@types/jsonwebtoken": "^9.0.2",
     "@types/node": "^20.11.16",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.2.1",
-    "bcryptjs": "^2.4.3",
-    "clsx": "^2.1.0",
-    "html2canvas": "^1.4.1",
-    "jsonwebtoken": "^9.0.2",
-    "jspdf": "^2.5.2",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.3",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.12"
-  },
-  "devDependencies": {
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.33",
-    "tailwindcss": "^3.4.1"
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
   }
 }
