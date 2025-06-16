@@ -3,11 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "node_modules/.bin/tsc -p tsconfig.build.json && vite build",
-    "preview": "vite preview",
-    "type-check": "node_modules/.bin/tsc -p tsconfig.build.json",
-    "postinstall": "npx prisma generate"
+    "build": "tsc && vite build"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
