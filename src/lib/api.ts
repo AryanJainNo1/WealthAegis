@@ -7,6 +7,17 @@ const api = axios.create({
   },
 });
 
+// Add token to headers for protected routes
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 export const apiService = {
   login: async (email: string, password: string) => {
     return api.post('/auth/login', { email, password });
