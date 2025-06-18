@@ -33,10 +33,26 @@ api.interceptors.response.use(
 
 export const apiService = {
   login: async (email: string, password: string) => {
-    return api.post('/auth/login', { email, password });
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Login failed');
+      }
+      return response;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Login failed');
+    }
   },
   signup: async (name: string, email: string, password: string) => {
-    return api.post('/auth/signup', { name, email, password });
+    try {
+      const response = await api.post('/auth/signup', { name, email, password });
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Signup failed');
+      }
+      return response;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Signup failed');
+    }
   },
   // Add more API methods as needed
 };

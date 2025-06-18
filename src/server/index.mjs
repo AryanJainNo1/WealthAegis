@@ -53,30 +53,37 @@ function getContentType(filePath) {
 // Database helper functions
 async function getUserByEmail(email) {
   try {
+    console.log('Querying user with email:', email);
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    console.log('Query result:', result.rows.length ? 'User found' : 'No user found');
     return result.rows[0];
   } catch (error) {
     console.error('Error getting user:', error);
-    throw error;
+    throw new Error(`Failed to get user: ${error.message}`);
   }
 }
 
 async function createUser(userData) {
   try {
+    console.log('Creating user:', { name: userData.name, email: userData.email });
+    
     // Generate a unique ID
     const id = crypto.randomUUID();
+    
     // Hash the password
     const hashedPassword = await bcrypt.hash(userData.password, 10);
+    console.log('Password hashed successfully');
     
     await pool.query(
       'INSERT INTO users (id, name, email, password) VALUES ($1, $2, $3, $4)',
       [id, userData.name, userData.email, hashedPassword]
     );
     
+    console.log('User created successfully');
     return { id, name: userData.name, email: userData.email };
   } catch (error) {
     console.error('Error creating user:', error);
-    throw error;
+    throw new Error(`Failed to create user: ${error.message}`);
   }
 }
 
@@ -121,61 +128,61 @@ const server = http.createServer(async (req, res) => {
             try {
               let body = '';
               req.on('data', chunk => {
-                body += chunk;
+                body += chunk.toString();
               });
-              
               req.on('end', async () => {
                 try {
                   const { email, password } = JSON.parse(body);
                   if (!email || !password) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Missing required fields' }));
-                    return;
+                    throw new Error('Email and password are required');
                   }
-
-                  // Find user
+                  
+                  console.log('Login attempt:', { email });
                   const user = await getUserByEmail(email);
+                  
                   if (!user) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Invalid credentials' }));
-                    return;
+                    throw new Error('Invalid credentials');
                   }
-
-                  // Verify password
-                  const isValidPassword = await bcrypt.compare(password, user.password);
-                  if (!isValidPassword) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Invalid credentials' }));
-                    return;
+                  
+                  const validPassword = await bcrypt.compare(password, user.password);
+                  if (!validPassword) {
+                    throw new Error('Invalid credentials');
                   }
-
-                  // Generate JWT token
+                  
                   const token = jwt.sign(
                     { userId: user.id },
                     process.env.JWT_SECRET || 'your-secret-key',
-                    { expiresIn: '1d' }
+                    { expiresIn: '24h' }
                   );
-
-                  // Return user data without password
-                  const userData = {
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    created_at: user.created_at
-                  };
                   
                   res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ token, user: userData }));
+                  res.end(JSON.stringify({
+                    success: true,
+                    data: {
+                      token,
+                      user: {
+                        id: user.id,
+                        name: user.name,
+                        email: user.email
+                      }
+                    }
+                  }));
                 } catch (error) {
                   console.error('Login error:', error);
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: 'Internal server error' }));
+                  res.writeHead(401, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({
+                    success: false,
+                    error: error.message || 'Invalid credentials'
+                  }));
                 }
               });
             } catch (error) {
-              console.error('Login error:', error);
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Internal server error' }));
+              console.error('Login request error:', error);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: 'Invalid request format'
+              }));
             }
             return;
           } else {
@@ -195,7 +202,10 @@ const server = http.createServer(async (req, res) => {
               req.on('end', async () => {
                 try {
                   const { name, email, password } = JSON.parse(body);
+                  console.log('Signup request received:', { name, email });
+                  
                   if (!name || !email || !password) {
+                    console.error('Missing required fields');
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Missing required fields' }));
                     return;
@@ -204,47 +214,52 @@ const server = http.createServer(async (req, res) => {
                   // Check if user already exists
                   const existingUser = await getUserByEmail(email);
                   if (existingUser) {
+                    console.log('User already exists:', email);
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'User already exists' }));
                     return;
                   }
 
                   // Create user
-                  await createUser({ name, email, password });
+                  const user = await createUser({ name, email, password });
+                  console.log('User created successfully:', user);
                   
-                  // Get the user ID after creation
-                  const user = await getUserByEmail(email);
-                  if (!user) {
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Internal server error' }));
-                    return;
-                  }
-
-                  // Generate JWT token using the actual user ID
+                  // Generate JWT token
                   const token = jwt.sign(
                     { userId: user.id },
                     process.env.JWT_SECRET || 'your-secret-key',
                     { expiresIn: '1d' }
                   );
+                  console.log('JWT token generated successfully');
 
-                  // Return user data
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ token, user: { name: user.name, email: user.email } }));
+                  // Return success response
+                  res.writeHead(201, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ 
+                    token, 
+                    user: { 
+                      id: user.id,
+                      name: user.name,
+                      email: user.email,
+                      created_at: new Date().toISOString() 
+                    } 
+                  }));
                 } catch (error) {
                   console.error('Signup error:', error);
+                  const errorMessage = error instanceof Error ? error.message : 'Internal server error';
                   res.writeHead(500, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: 'Internal server error' }));
+                  res.end(JSON.stringify({ error: errorMessage }));
                 }
               });
             } catch (error) {
               console.error('Signup error:', error);
+              const errorMessage = error instanceof Error ? error.message : 'Internal server error';
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Internal server error' }));
+              res.end(JSON.stringify({ error: errorMessage }));
             }
             return;
           } else {
-            res.writeHead(405);
-            res.end('Method Not Allowed');
+            res.writeHead(405, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Method Not Allowed' }));
             return;
           }
 
@@ -297,7 +312,18 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Start server
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+
+// Handle CORS
+server.on('listening', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+// Handle errors
+server.on('error', (error) => {
+  console.error('Server error:', error);
+});
+
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
   console.log('Available endpoints:');
