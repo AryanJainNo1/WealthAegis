@@ -8,6 +8,7 @@ interface User {
   name: string;
   email: string;
   guest?: boolean;
+  error?: string;
 }
 
 interface AuthContextProps {
@@ -52,6 +53,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return true;
     } catch (error) {
       console.error('Signup error:', error);
+      // Extract the error message from the response
+      const errorMessage = error.response?.data?.error || 'Failed to create account';
+      // Store the error message in the user state
+      setUser(prevUser => ({
+        ...(prevUser || {}),
+        error: errorMessage
+      }));
       return false;
     }
   };
