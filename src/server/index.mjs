@@ -113,33 +113,20 @@ async function getUserByEmail(email) {
     
     // List all users for debugging
     const allUsers = await pool.query('SELECT * FROM users');
-    console.log('All users in database:', allUsers.rows.map(u => ({
-      id: u.id,
-      name: u.name,
-      email: u.email
-    })));
-    
     const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
-    console.log('Query result:', {
-      rowCount: result.rows.length,
-      rows: result.rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        email: row.email
-      }))
-    });
+    console.log('Query result:', result.rows.length);
     
     if (result.rows.length > 0) {
-      console.log('Found user:', {
+      console.log('Found user:', result.rows[0].email);
+      return {
         id: result.rows[0].id,
         name: result.rows[0].name,
         email: result.rows[0].email
-      });
+      };
     } else {
       console.log('No user found with email:', normalizedEmail);
+      return null; // Return null when no user is found
     }
-    
-    return result.rows[0];
   } catch (error) {
     console.error('Error getting user:', {
       message: error.message,
@@ -287,7 +274,7 @@ const server = http.createServer(async (req, res) => {
             try {
               let body = '';
               req.on('data', chunk => {
-                body += chunk;
+                body += chunk.toString(); // Convert chunk to string
               });
               
               req.on('end', async () => {
