@@ -55,11 +55,37 @@ async function getUserByEmail(email) {
   try {
     const normalizedEmail = email.toLowerCase();
     console.log('Querying user with email:', normalizedEmail);
+    
+    // First check if table exists
+    const tableCheck = await pool.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')");
+    console.log('Table exists:', tableCheck.rows[0].exists);
+    
     const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
-    console.log('Query result:', result.rows.length ? 'User found' : 'No user found');
+    console.log('Query result:', {
+      rowCount: result.rows.length,
+      rows: result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        email: row.email
+      }))
+    });
+    
+    if (result.rows.length > 0) {
+      console.log('Found user:', {
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        email: result.rows[0].email
+      });
+    } else {
+      console.log('No user found with email:', normalizedEmail);
+    }
+    
     return result.rows[0];
   } catch (error) {
-    console.error('Error getting user:', error);
+    console.error('Error getting user:', {
+      message: error.message,
+      stack: error.stack
+    });
     throw new Error(`Failed to get user: ${error.message}`);
   }
 }
