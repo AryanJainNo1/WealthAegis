@@ -30,12 +30,17 @@ export default function SignupPage() {
         }
         const ok = await signup(name, email, password);
         if (!ok) {
-            setErr("Account already exists.");
+            const user = useAuth().user;
+            setErr(user?.error || "Failed to create account");
             return;
         }
+        setName("");
+        setEmail("");
+        setPassword("");
+        setConf("");
         setSuccess(true);
         setTimeout(() => {
-            navigate("/login");
+            navigate("/login", { replace: true });
         }, 1200);
     };
     const handleBackToLogin = () => {

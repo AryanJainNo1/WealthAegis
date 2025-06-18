@@ -46,9 +46,17 @@ export default function SignupPage() {
       setErr(user?.error || "Failed to create account");
       return;
     }
+    
+    // Clear form fields after successful signup
+    setName("");
+    setEmail("");
+    setPassword("");
+    setConf("");
+    
+    // Show success message and redirect
     setSuccess(true);
     setTimeout(() => {
-      navigate("/login");
+      navigate("/login", { replace: true }); // Use replace to prevent going back to signup
     }, 1200);
   };
 
