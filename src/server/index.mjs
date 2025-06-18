@@ -21,8 +21,59 @@ dotenv.config();
 
 // Initialize PostgreSQL pool
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/wealthaegis',
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
+
+// Database initialization
+async function initializeDatabase() {
+  try {
+    console.log('Initializing database...');
+    
+    // Check if database is accessible
+    await pool.query('SELECT 1');
+    console.log('Database connection successful');
+    
+    // Create users table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Users table created/exists');
+    
+    // Clear existing test users
+    await pool.query('DELETE FROM users WHERE email = $1', ['test@example.com']);
+    console.log('Deleted test user if existed');
+    
+    // Create test user
+    try {
+      await createUser({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'password123'
+      });
+      console.log('Created test user');
+    } catch (error) {
+      console.error('Error creating test user:', error);
+    }
+    
+    // Verify table contents
+    const users = await pool.query('SELECT * FROM users');
+    console.log('Current users in database:', users.rows.length);
+    
+    console.log('Database initialization complete');
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    throw error;
+  }
+}
 
 // Helper function to get content type based on file extension
 function getContentType(filePath) {
@@ -54,11 +105,19 @@ function getContentType(filePath) {
 async function getUserByEmail(email) {
   try {
     const normalizedEmail = email.toLowerCase();
-    console.log('Querying user with email:', normalizedEmail);
+    console.log('Querying user with normalized email:', normalizedEmail);
     
     // First check if table exists
     const tableCheck = await pool.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')");
     console.log('Table exists:', tableCheck.rows[0].exists);
+    
+    // List all users for debugging
+    const allUsers = await pool.query('SELECT * FROM users');
+    console.log('All users in database:', allUsers.rows.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email
+    })));
     
     const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
     console.log('Query result:', {
@@ -101,54 +160,39 @@ async function createUser(userData) {
     const hashedPassword = await bcrypt.hash(userData.password, 10);
     console.log('Password hashed successfully');
     
+    // First check if user exists
+    const existingUser = await getUserByEmail(userData.email);
+    if (existingUser) {
+      console.error('User already exists in database:', existingUser.email);
+      throw new Error('User already exists');
+    }
+    
+    // Insert new user
     await pool.query(
       'INSERT INTO users (id, name, email, password) VALUES ($1, $2, $3, $4)',
       [id, userData.name, userData.email, hashedPassword]
     );
     
-    console.log('User created successfully');
+    // Verify user was created
+    const createdUser = await getUserByEmail(userData.email);
+    if (!createdUser) {
+      console.error('Failed to verify user creation');
+      throw new Error('Failed to verify user creation');
+    }
+    
+    console.log('User created successfully and verified');
     return { id, name: userData.name, email: userData.email };
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('Error creating user:', {
+      message: error.message,
+      stack: error.stack
+    });
     throw new Error(`Failed to create user: ${error.message}`);
   }
 }
 
-// Initialize database with proper error handling
-async function initializeDatabase() {
-  try {
-    // Create users table if it doesn't exist
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    // Create test user if not exists
-    try {
-      await createUser({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123'
-      });
-    } catch (error) {
-      // If user already exists, ignore the error
-      if (!error.message.includes('duplicate key')) {
-        console.error('Error creating test user:', error);
-      }
-    }
-  } catch (error) {
-    console.error('Database initialization error:', error);
-    throw error;
-  }
-}
-
-// Initialize database
-initializeDatabase();
+// Initialize database before starting server
+await initializeDatabase();
 
 // Create server
 const server = http.createServer(async (req, res) => {
