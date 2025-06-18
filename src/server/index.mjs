@@ -135,11 +135,16 @@ async function getUserByEmail(email) {
         name: result.rows[0].name,
         email: result.rows[0].email
       });
+      // Return sanitized user object without password
+      return {
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        email: result.rows[0].email
+      };
     } else {
       console.log('No user found with email:', normalizedEmail);
+      return null;
     }
-    
-    return result.rows[0];
   } catch (error) {
     console.error('Error getting user:', {
       message: error.message,
@@ -174,8 +179,8 @@ async function createUser(userData) {
     );
     
     // Verify user was created
-    const createdUser = await getUserByEmail(userData.email);
-    if (!createdUser) {
+    const createdUser = await pool.query('SELECT id, name, email FROM users WHERE id = $1', [id]);
+    if (createdUser.rows.length === 0) {
       console.error('Failed to verify user creation');
       throw new Error('Failed to verify user creation');
     }
