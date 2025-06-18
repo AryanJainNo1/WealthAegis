@@ -53,8 +53,9 @@ function getContentType(filePath) {
 // Database helper functions
 async function getUserByEmail(email) {
   try {
-    console.log('Querying user with email:', email);
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const normalizedEmail = email.toLowerCase();
+    console.log('Querying user with email:', normalizedEmail);
+    const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
     console.log('Query result:', result.rows.length ? 'User found' : 'No user found');
     return result.rows[0];
   } catch (error) {
@@ -87,16 +88,36 @@ async function createUser(userData) {
   }
 }
 
-// Create test user if not exists
+// Initialize database with proper error handling
 async function initializeDatabase() {
   try {
-    await createUser({
-      name: 'Test User',
-      email: 'test@example.com',
-      password: 'password123'
-    });
+    // Create users table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Create test user if not exists
+    try {
+      await createUser({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'password123'
+      });
+    } catch (error) {
+      // If user already exists, ignore the error
+      if (!error.message.includes('duplicate key')) {
+        console.error('Error creating test user:', error);
+      }
+    }
   } catch (error) {
-    console.error('Error creating test user:', error);
+    console.error('Database initialization error:', error);
+    throw error;
   }
 }
 
