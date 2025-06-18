@@ -11,6 +11,12 @@ interface User {
   error?: string;
 }
 
+// Create a type for user state with optional fields
+interface UserState {
+  user: User | null;
+  error?: string;
+}
+
 interface AuthContextProps {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
@@ -55,11 +61,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Signup error:', error);
       // Extract the error message from the response
       const errorMessage = error.response?.data?.error || 'Failed to create account';
-      // Store the error message in the user state
-      setUser(prevUser => ({
-        ...(prevUser || {}),
+      // Create a temporary user object with empty values
+      const tempUser: User = {
+        id: crypto.randomUUID(),
+        name: '',
+        email: '',
         error: errorMessage
-      }));
+      };
+      setUser(tempUser);
       return false;
     }
   };
