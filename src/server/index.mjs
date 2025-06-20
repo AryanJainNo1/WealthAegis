@@ -178,7 +178,14 @@ async function createUser(userData) {
   }
 }
 
-// Initialize database before starting server
+import http from 'http';
+import url from 'url';
+import path from 'path';
+import fs from 'fs';
+import { getContentType } from './utils.js';
+import { initializeDatabase, getUserByEmail, createUser } from './db.js';
+
+// Initialize database
 await initializeDatabase();
 
 // Create server
@@ -200,189 +207,141 @@ const server = http.createServer(async (req, res) => {
     // Handle API routes
     if (pathname.startsWith('/api/auth/')) {
       const apiPath = pathname.substring(9); // Remove '/api/auth/' prefix
-      switch (apiPath) {
-        case '/login':
-          if (req.method === 'POST') {
-            try {
-              let body = '';
-              req.on('data', chunk => {
-                body += chunk.toString();
-              });
-              req.on('end', async () => {
-                try {
-                  const { email, password } = JSON.parse(body);
-                  if (!email || !password) {
-                    throw new Error('Email and password are required');
-                  }
-                  
-                  console.log('Login attempt:', { email });
-                  const user = await getUserByEmail(email);
-                  
-                  if (!user) {
-                    throw new Error('Invalid credentials');
-                  }
-                  
-                  const validPassword = await bcrypt.compare(password, user.password);
-                  if (!validPassword) {
-                    throw new Error('Invalid credentials');
-                  }
-                  
-                  const token = jwt.sign(
-                    { userId: user.id },
-                    process.env.JWT_SECRET || 'your-secret-key',
-                    { expiresIn: '24h' }
-                  );
-                  
-                  res.writeHead(200, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({
-                    success: true,
-                    data: {
-                      token,
-                      user: {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email
-                      }
-                    }
-                  }));
-                } catch (error) {
-                  console.error('Login error:', error);
-                  res.writeHead(401, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({
-                    success: false,
-                    error: error.message || 'Invalid credentials'
-                  }));
+      
+      // Parse request body
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
+      });
+      
+      req.on('end', async () => {
+        try {
+          const data = JSON.parse(body);
+          
+          switch (apiPath) {
+            case 'login':
+              if (req.method === 'POST') {
+                const { email, password } = data;
+                if (!email || !password) {
+                  throw new Error('Email and password are required');
                 }
-              });
-            } catch (error) {
-              console.error('Login request error:', error);
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({
-                success: false,
-                error: 'Invalid request format'
-              }));
-            }
-            return;
-          } else {
-            res.writeHead(405);
-            res.end('Method Not Allowed');
-            return;
-          }
-
-        case '/signup':
-          if (req.method === 'POST') {
-            try {
-              let body = '';
-              req.on('data', chunk => {
-                body += chunk.toString(); // Convert chunk to string
-              });
-              
-              req.on('end', async () => {
-                try {
-                  const { name, email, password } = JSON.parse(body);
-                  console.log('Signup request received:', { name, email });
-                  
-                  if (!name || !email || !password) {
-                    console.error('Missing required fields');
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Missing required fields' }));
-                    return;
+                
+                const user = await getUserByEmail(email);
+                if (!user) {
+                  throw new Error('Invalid credentials');
+                }
+                
+                const validPassword = await bcrypt.compare(password, user.password);
+                if (!validPassword) {
+                  throw new Error('Invalid credentials');
+                }
+                
+                const token = jwt.sign(
+                  { userId: user.id },
+                  process.env.JWT_SECRET || 'your-secret-key',
+                  { expiresIn: '24h' }
+                );
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  success: true,
+                  data: {
+                    token,
+                    user: {
+                      id: user.id,
+                      name: user.name,
+                      email: user.email
+                    }
                   }
+                }));
+              } else {
+                res.writeHead(405, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  success: false,
+                  error: 'Method not allowed'
+                }));
+              }
+              break;
 
-                  // Check if user already exists
-                  const existingUser = await getUserByEmail(email);
-                  if (existingUser) {
-                    console.log('User already exists:', email);
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'User already exists' }));
-                    return;
-                  }
+            case 'signup':
+              if (req.method === 'POST') {
+                const { name, email, password } = data;
+                if (!name || !email || !password) {
+                  throw new Error('Name, email, and password are required');
+                }
+                
+                // Check if user already exists
+                const existingUser = await getUserByEmail(email);
+                if (existingUser) {
+                  throw new Error('User already exists');
+                }
 
-                  // Create user
-                  const user = await createUser({ name, email, password });
-                  console.log('User created successfully:', user);
-                  
-                  // Generate JWT token
-                  const token = jwt.sign(
-                    { userId: user.id },
-                    process.env.JWT_SECRET || 'your-secret-key',
-                    { expiresIn: '1d' }
-                  );
-                  console.log('JWT token generated successfully');
+                // Create user
+                const user = await createUser({ name, email, password });
+                
+                // Generate JWT token
+                const token = jwt.sign(
+                  { userId: user.id },
+                  process.env.JWT_SECRET || 'your-secret-key',
+                  { expiresIn: '1d' }
+                );
 
-                  // Return success response
-                  res.writeHead(201, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ 
-                    token, 
+                // Return success response
+                res.writeHead(201, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                  success: true,
+                  data: {
+                    token,
                     user: { 
                       id: user.id,
                       name: user.name,
                       email: user.email,
                       created_at: new Date().toISOString() 
-                    } 
-                  }));
-                } catch (error) {
-                  console.error('Signup error:', error);
-                  const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-                  res.writeHead(500, { 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ error: errorMessage }));
-                }
-              });
-            } catch (error) {
-              console.error('Signup error:', error);
-              const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-              res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: errorMessage }));
-            }
-            return;
-          } else {
-            res.writeHead(405, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-            return;
+                    }
+                  }
+                }));
+              } else {
+                res.writeHead(405, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  success: false,
+                  error: 'Method not allowed'
+                }));
+              }
+              break;
+
+            default:
+              res.writeHead(404, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                success: false,
+                error: 'Not found'
+              }));
           }
-
-        case '/health':
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'healthy' }));
-          break;
-
-        default:
-          res.writeHead(404);
-          res.end('Not Found');
-          break;
-      }
-    }
-
-    // Handle page routes
-    const pageRoutes = ['/login', '/signup', '/health'];
-    if (pageRoutes.includes(pathname)) {
-      if (req.method === 'GET') {
-        // Serve the appropriate page
-        const indexPath = path.join(__dirname, '../../dist/index.html');
-        if (fs.existsSync(indexPath)) {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          fs.createReadStream(indexPath).pipe(res);
-          return;
+        } catch (error) {
+          console.error('API error:', error);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: false,
+            error: error.message || 'Invalid request'
+          }));
         }
-      } else {
-        res.writeHead(405);
-        res.end('Method Not Allowed');
-        return;
-      }
+      });
+      
+      return;
     }
 
-    // Handle static files
-    const staticFilePath = path.join(__dirname, '../../dist', pathname);
-    if (fs.existsSync(staticFilePath)) {
-      const contentType = getContentType(staticFilePath);
-      res.writeHead(200, { 'Content-Type': contentType });
-      fs.createReadStream(staticFilePath).pipe(res);
-      return;
-    } else {
-      res.writeHead(404);
-      res.end('Not Found');
-    }
+    // Handle other routes
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: false,
+      error: 'Not found'
+    }));
   } catch (error) {
+    console.error('Server error:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: false,
+      error: 'Internal server error'
+    }));
     console.error('Request error:', error);
     res.writeHead(500);
     res.end('Internal Server Error');
